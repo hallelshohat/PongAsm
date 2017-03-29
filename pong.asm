@@ -119,7 +119,7 @@ PROC printBlack
 	mov bx, [wid] ;width
 	mov ax, [ly] ; height
 	mov ah, al
-	mov al, 4 ;color
+	mov al, 0 ;color
 	call print_rect ; prints the top of the left paddle
 	
 	mov cx, [lx] ;x
@@ -129,7 +129,7 @@ PROC printBlack
 	mov bx, [ly]
 	add bl, [height]
 	sub ah, bl 
-	mov al, 03h
+	mov al, 0
 	mov bx, [wid]
 	call print_rect ; prints the bottom of the left paddle
 
@@ -138,7 +138,7 @@ PROC printBlack
 	mov bx, [wid] ;width
 	mov ax, [ry] ; height
 	mov ah, al
-	mov al, 4 ;color
+	mov al, 0 ;color
 	call print_rect ; prints the top of the right paddle
 	
 	mov cx, [rx] ;x
@@ -148,7 +148,7 @@ PROC printBlack
 	mov bx, [ry]
 	add bl, [height]
 	sub ah, bl 
-	mov al, 03h
+	mov al, 0
 	mov bx, [wid]
 	call print_rect ; prints the bottom of the right paddle
 	pop dx cx bx ax
