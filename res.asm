@@ -15,15 +15,14 @@
 ;	txtmode - moves to text mode
 ;	delay - delays in ax millisecs
 ;	clearBuffer - clears the keyboard buffer
-;	checkKeyPress 	check for keyPress in the buffer. 
-;					ZF: 0 - if there is a keyPress, 1 - if any key pressed. 
-;					ah = scan code, al = ascii char
+;	checkKeyPress 	check for keyPress in the buffer. al = scan code
 ;	waitForKeyPress - waits for a keypress. no echo
 ;	PRINT_PIXEL - prints a pixel in the specified location and color. cx - x, dx - y, al - color.
 ;	PRINT_LINE - prints a line. bx - length, cx - x, dx -  y, al - color
 ;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.
 ;	INIT_MOUSE - initializes the mouse in graphics mode
 ;	GET_MOUSE_POS - gets the position and status of the mouse. returns: CX - x, DX - y, BX - status(right bit- left key, 2nd bit- right key).	
+;	RAND - generating a random number between 0 and bx. returns: ax - the number.
 
 ;-------------------------variables-----------------------------------------------------------------------------------
 count db 0
@@ -285,12 +284,8 @@ PROC clearBuffer ; clears the keyboard buffer
 	ret
 ENDP 
 
-PROC checkKeyPress ; check for keyPress in the buffer. zf: 0- if there is a keyPress, 1- if any key pressed. ah = scan code, al = ascii char
-	mov ah, 01h
-	int 16h
-	jnz @@yes
-	ret
-@@yes:
+PROC checkKeyPress ; checks for a keyPress in the buffer. al = scan code
+	in al, 60h
 	call clearBuffer
 	ret
 ENDP
@@ -348,6 +343,19 @@ ENDP
 PROC GET_MOUSE_POS
 	mov ax, 3
 	int 33h
+ENDP
+
+PROC rand ; generating a random number between 0 and bx. returns - ax: the number.
+	push cx dx
+	mov ah, 0
+	int 1Ah ; system time, CX:DX
+	mov ax, dx
+	mov dx, 0
+	mov cx, bx
+	div cx ; dx = ax % cx
+	mov ax, dx
+	pop dx cx
+	ret
 ENDP
 
 ;COLOR TABLE: 4 upper bits: background color, 4 lower bits: character color.

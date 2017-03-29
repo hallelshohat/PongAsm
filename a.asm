@@ -2,26 +2,20 @@ IDEAL
 model small
 stack 100h
 dataseg	
-	save db 0
 codeseg
 include "res.asm"
 start:
 	mov ax, @data
 	mov ds, ax
-l:	
-	call check
-	cmp al, [save]
-	mov ah, 0
-	call print_uns
-	jmp l
-g:
 	
+	lea bx, [00]
+l:	
+	mov al, [bx]
+	print_color al, al
+	inc bx
+	jmp l
 exit:
-	mov ah, 4Ch
+	mov ah, 04Ch
 	int 21h
-PROC check ; in dl - 	
-	in al, 60h
-	call clearBuffer
-	ret
-ENDP	
+	
 END start	
