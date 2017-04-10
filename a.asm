@@ -7,12 +7,14 @@ include "res.asm"
 start:
 	mov ax, @data
 	mov ds, ax
-	
-	lea bx, [00]
-l:	
-	mov al, [bx]
-	print_color al, al
-	inc bx
+					; 40x25
+	call graphmode
+	mov dh, 0
+	mov bh, 0
+l:
+	putc 7
+	mov ax, 100
+	call delay
 	jmp l
 exit:
 	mov ah, 04Ch

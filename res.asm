@@ -19,9 +19,7 @@
 ;	waitForKeyPress - waits for a keypress. no echo
 ;	PRINT_PIXEL - prints a pixel in the specified location and color. cx - x, dx - y, al - color.
 ;	PRINT_LINE - prints a line. bx - length, cx - x, dx -  y, al - color
-;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.
-;	INIT_MOUSE - initializes the mouse in graphics mode
-;	GET_MOUSE_POS - gets the position and status of the mouse. returns: CX - x, DX - y, BX - status(right bit- left key, 2nd bit- right key).	
+;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.	
 ;	RAND - generating a random number between 0 and bx. returns: ax - the number.
 
 ;-------------------------variables-----------------------------------------------------------------------------------
@@ -329,20 +327,6 @@ PROC print_rect ; ah - height, cx - x, dx - y, bx - width, al - color
 	jne @@a
 	pop dx cx bx ax
 	ret
-ENDP
-
-PROC INIT_MOUSE
-	;initializes the mouse 
-	mov ax, 0
-	int 33h
-	;shows the mouse
-	mov ax, 1
-	int 33h
-ENDP
-
-PROC GET_MOUSE_POS
-	mov ax, 3
-	int 33h
 ENDP
 
 PROC rand ; generating a random number between 0 and bx. returns - ax: the number.
