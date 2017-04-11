@@ -1,12 +1,16 @@
-;MACROS:
+;----------------------------------------------------------------------------------------------------------------------------
+;									MACROS
+;----------------------------------------------------------------------------------------------------------------------------
 ;	PUTC - parameters: char(byte), prints the character.
 ;	gotoXY - parameters: a- row, b- colomn. puts the cursor in this location
 ;	PRINT_COLOR - paramaters: char(byte), color(byte). prints the character with the color. color table- end of file
 ;	LINE - going down one line.
 ;	PRINT_STR - parameters: string, prints the string(without a line ending).
 ;	PRINTN - parameters: string, prints the string(with a line ending).
- 
-;PROCEDURES:
+
+;---------------------------------------------------------------------------------------------------------------------------- 
+;									PROCEDURES
+;----------------------------------------------------------------------------------------------------------------------------
 ;	PRINT_UNS - prints the value in ax register(unsigned).
 ;	PRINTS - prints the value in ax register(signed).
 ;	SCAN_NUM - scans a number to cx register.
@@ -21,9 +25,8 @@
 ;	PRINT_LINE - prints a line. bx - length, cx - x, dx -  y, al - color
 ;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.	
 ;	RAND - generating a random number between 0 and bx. returns: ax - the number.
+;	cls - clears the screen (in text mode)
 
-;-------------------------variables-----------------------------------------------------------------------------------
-count db 0
 ;-------------------------macros--------------------------------------------------------------------------------------
 MACRO PUTC char
         push    ax dx
@@ -147,11 +150,17 @@ PROC SCAN_NUM ; result - cx
 	push ax bx dx
     mov bx, 1   
     mov cx, 0
+	jmp @@sc
+	count db 0
 @@sc:
     mov ah, 01h
     int 21h ; al - char
     cmp al, 0Dh ; enter
     je @@done
+	cmp al, '0'
+	jb @@sc
+	cmp al, '9'
+	ja @@sc
     cmp al, 08h ; backspace    
     je @@bsp
     mov ah, 0
@@ -161,15 +170,11 @@ PROC SCAN_NUM ; result - cx
     cmp [count], 5
     jbe @@sc
     jmp @@done
-    
 @@bsp:
     pop ax
     dec [count]
-    mov ah, 02h
-    mov dl, 20h
-    int 21h
-    mov dl, 08h
-    int 21h
+    putc 20h
+    putc 08h
     jmp @@sc
 @@done:
     pop ax
@@ -339,6 +344,15 @@ PROC rand ; generating a random number between 0 and bx. returns - ax: the numbe
 	div cx ; dx = ax % cx
 	mov ax, dx
 	pop dx cx
+	ret
+ENDP
+
+PROC cls
+	gotoXY 0, 0
+	mov cx, 2000
+@@l:
+	putc ' '
+	loop @@l
 	ret
 ENDP
 
