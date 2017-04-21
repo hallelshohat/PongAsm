@@ -25,7 +25,10 @@
 ;	PRINT_LINE - prints a line. bx - length, cx - x, dx -  y, al - color
 ;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.	
 ;	RAND - generating a random number between 0 and bx. returns: ax - the number.
-;	cls - clears the screen (in text mode)
+;	cls - clears the screen (in text mode).
+;	open_speaker - opens the speaker port.
+;	send_note - sends a note to the speaker, ax = 1193180/hz.note
+; 	close_speaker - closes the speaker ports.
 
 ;-------------------------macros--------------------------------------------------------------------------------------
 MACRO PUTC char
@@ -157,38 +160,45 @@ PROC SCAN_NUM ; result - cx
     int 21h ; al - char
     cmp al, 0Dh ; enter
     je @@done
-	cmp al, '0'
-	jb @@sc
-	cmp al, '9'
-	ja @@sc
-    cmp al, 08h ; backspace    
+	cmp al, 08h ; backspace    
     je @@bsp
-    mov ah, 0
-    sub ax, '0'
+	cmp al, '9'
+	ja @@bsp
+	cmp al, '0'
+	jb @@bsp
+
+	mov ah, 0
+    sub al, '0'
     push ax
     inc [count]
     cmp [count], 5
     jbe @@sc
     jmp @@done
 @@bsp:
-    pop ax
-    dec [count]
+	pop ax
+	dec [count]
     putc 20h
-    putc 08h
+	putc 08h
     jmp @@sc
 @@done:
+	cmp [count], 0
+	je @@Zchars
     pop ax
-    mul bx
+    mul bx ; ax - result
     add cx, ax
     mov ax, bx
     mov dx, 10
-    mul dx
+    mul dx ; ax - result
     mov bx, ax
     dec [count]
     cmp [count], 0
-    jne @@done         
+    jne @@done 
+	jmp @@exit
+@@Zchars:
+	mov cx, 0
+	jmp @@exit
 @@exit:
-    pop dx bx dx
+    pop dx bx ax
     ret  
 ENDP SCAN_NUM
 
@@ -348,13 +358,46 @@ PROC rand ; generating a random number between 0 and bx. returns - ax: the numbe
 ENDP
 
 PROC cls
+	push cx
 	gotoXY 0, 0
 	mov cx, 2000
 @@l:
 	putc ' '
 	loop @@l
+	pop cx
 	ret
 ENDP
+
+PROC open_speaker ;	opens the speaker port
+	push ax
+	in al, 61h
+	or al, 00000011b
+	out 61h, al
+	
+	mov al, 0B6h ;getting permission to send frequency
+	out 43h, al
+	pop ax
+	ret
+ENDP
+
+PROC send_note ; sends a note to the speaker, ax = 1193180/hz.note
+	push ax
+	out 42h, al ; Sending lower byte
+	mov al, ah
+	out 42h, al ; Sending upper byte
+	pop ax
+	ret
+ENDP
+
+PROC close_speaker ; closes the speaker port.
+	push ax
+	in al, 61h
+	and al, 11111100b
+	out 61h, al
+	pop ax
+	ret
+ENDP
+
 
 ;COLOR TABLE: 4 upper bits: background color, 4 lower bits: character color.
 ;	0		Black

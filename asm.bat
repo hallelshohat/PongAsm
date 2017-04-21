@@ -1,2 +1,2 @@
-tasm /z %1
-tlink %1.obj
+tasm /zi %1
+tlink /v %1.obj

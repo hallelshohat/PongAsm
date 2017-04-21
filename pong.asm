@@ -3,7 +3,7 @@ model small
 stack 100h
 dataseg
 	sM dw 3 ;step size 
-	mils dw 15
+	mils dw 20
 	wid dw 10
 	height db 50 
 	
@@ -33,11 +33,24 @@ dataseg
 	rScore db 0
 	lScore db 0
 	isWait db 0 ; BOOLEAN
+	reset db 0
+	
+	song 	dw 2 dup(2712, 3044, 2712, 3620, 4561, 3620, 5424, 50), 2712, 2416, 2280, 2416, 2280, 2712, 2416, 2712, 2416, 3044, 2712, 3044, 3620, 3044, 2712, 50 ;first verse
+			dw 2 dup(2712, 3044, 2712, 3620, 4561, 3620, 5424, 50), 2712, 2416, 2280, 2416, 2280, 2712, 2416, 2712, 2416, 3044, 2712, 3044, 2712, 2416, 2280, 50 ;second verse
+			dw 2 dup(1810, 2032, 1810, 2280, 3044, 2280, 3620, 50), 1810, 1612, 1522, 1612, 1522, 1810, 1612, 1810, 1612, 2032, 1810, 2032, 2416, 2032, 1810, 50 ;first verse - high
+			dw 2 dup(1810, 2032, 1810, 2280, 3044, 2280, 3620, 50), 1810, 1612, 1522, 1612, 1522, 1810, 1612, 1810, 1612, 2032, 1810, 2032, 2416, 3044, 3620, 50 ;second verse - high
+			dw 0
+	songP db 0
+	pointSong dw 2712, 2152, 1810, 1356, 50, 1810, 1356, 50, 50, 50, 50, 1356, 1810, 2152, 2712, 50, 2152, 2712, 50, 50, 50, 50, 0
+	pointSongP db 0
+	ticksNotes dw 0
 codeseg
 include "res.asm"
 start:
 	mov ax, @data
 	mov ds, ax
+	call close_speaker
+	mov [reset], 0
 	call cls
 	call showStart
 	call graphmode
@@ -46,31 +59,31 @@ l:
 	call printMatkot
 	call print_score
 	call updateM
-	
+	inc [ticksNotes]
+	cmp [reset], 1
+	je start
 	mov ax, [mils] ; milisecs
 	call delay
 	cmp [gameOver], 0
 	jne exit
-	cmp [won], 0
-	jne w
 	cmp [isWait], 0
 	je ballUpd
 	jne printWait
 	jmp l
 ballUpd:
+	call playSong
 	call printBall
 	call updateB
 	jmp l
 printWait:
+	call playPoint
+	cmp [won], 0
+	jne l
 	gotoXY 5, 8 ; 40x25
 	print_str "press enter to continue..."
 	jmp l
-w:
-	call updateM
-	cmp [won], 0
-	je ballupd
-	jmp w
 exit:
+	call close_speaker ; last note on popcorn song
 	call txtmode
 	printn "bye!"
 	mov ah, 4Ch
@@ -100,11 +113,15 @@ PROC showStart
 	ret
 ENDP	
 PROC restart
+	mov [reset], 1
+	mov [gameOver], 0
 	mov [won], 0
 	mov [isWait], 0
 	mov [rScore], 0
 	mov [lScore], 0
-	call init
+	mov [songP], 0
+	mov [pointSongP], 0
+	call txtmode
 	ret
 ENDP
 
@@ -136,7 +153,7 @@ ENDP
 ; prints the scores for each player
 PROC print_score
 	push ax
-	gotoXY 0, 0
+	gotoXY 0, 15
 	print_str "to win: "
 	mov ah, 0
 	mov al, [maxScore]
@@ -200,7 +217,7 @@ PROC updateM
 	cmp al, 13h ;r key - restart after won
 	je @@restart
 	cmp al, 1Ch ; enter key
-	je @@dWait
+	je @@d ; jumps to dwait
 	jmp @@add
 @@up:
 	mov ax, [sM]
@@ -225,6 +242,8 @@ PROC updateM
 	jg @@add
 	mov [rdy], 0
 	jmp @@add
+@@d:
+	jmp @@dWait
 @@nlu:	
 	cmp [ldy], 0
 	jg @@add
@@ -245,7 +264,10 @@ PROC updateM
 	mov [gameOver], 1
 	ret
 @@restart:
+	cmp [won], 0
+	je @@add
 	call restart
+	pop ax
 	ret
 @@add:
 	call ad
@@ -353,6 +375,7 @@ PROC printBlack
 ENDP
 ; prints the ball
 PROC printBall
+	push ax bx cx dx
 	mov cx, [ballX]
 	mov dx, [ballY]
 	mov bx, [ballW]
@@ -360,14 +383,17 @@ PROC printBall
 	mov ah, [ballH]
 	call print_rect
 	call ball_black
+	pop dx cx bx ax
 ENDP
 ; updates the ball x and y values
 PROC updateB
+	push ax
 	call checkCollision
 	mov ax, [balldX]
 	add [ballX], ax
 	mov ax, [balldY]
 	add [ballY], ax
+	pop ax
 	ret
 ENDP
 ; prints a black area in the previous location of the ball
@@ -473,11 +499,12 @@ PROC checkColiisionM
 	push ax bx
 	; left matka
 	mov ax, [ballY]
+	mov bl, [ballH]
+	add al, bl
 	cmp ax, [ly]
 	ja @@aboveL
 	jmp @@checkR
 @@aboveL:
-	add al, [ballH]
 	mov bx, [ly]
 	add bl, [height]
 	cmp ax, bx
@@ -491,11 +518,12 @@ PROC checkColiisionM
 @@checkR:
 	;right matka
 	mov ax, [ballY]
-	cmp ax, [rY]
+	mov bl, [ballH]
+	add al, bl
+	cmp ax, [ry]
 	ja @@aboveR
 	jmp @@checkScore
 @@aboveR:
-	add al, [ballH]
 	mov bx, [ry]
 	add bl, [height]
 	cmp ax, bx
@@ -525,6 +553,7 @@ PROC checkColiisionM
 	mov [isWait], 1
 	call eraseBall
 	call init
+	call close_speaker
 	jmp @@exit	
 @@rightScore:
 	inc [rScore]
@@ -536,10 +565,11 @@ PROC checkColiisionM
 	jmp @@score
 @@ls: 
 	jmp @@leftScore	
+@@e: jmp @@exit	;jump is too far	
 @@rwon:
 	call graphmode
 	call print_score
-	gotoXY 3, 12
+	gotoXY 3, 14
 	print_str "right won!!"
 	jmp @@won
 @@leftScore:
@@ -547,33 +577,32 @@ PROC checkColiisionM
 	mov al, [maxScore]
 	cmp [lScore], al
 	je @@lwon
-	gotoXY 3, 12
+	gotoXY 3, 14
 	print_str "left scored!!"
 	jmp @@score		
 @@lwon:
 	call graphmode
 	call print_score
-	gotoXY 3, 12
+	gotoXY 3, 14
 	print_str "left won!!"
 	jmp @@won
 @@won:
+	mov [isWait], 1
 	mov [won], 1
 	call eraseBall
-	gotoXY 5, 10
+	gotoXY 5, 14
 	print_str "RESTART - R"
-	gotoXY 7, 10
+	gotoXY 7, 14
 	print_str "EXIT - ESC"
 	jmp @@exit
 @@exit:
 	pop bx ax
 	ret
 ENDP
-; al = 0: right, al=1: left
-PROC score
-	
-ENDP
+
 ; erases the ball after a score
 PROC eraseBall
+	push ax bx cx dx
 	mov ah, [ballH]
 	add ah, 2
 	mov cx, [ballX]
@@ -584,7 +613,66 @@ PROC eraseBall
 	add bx, 2
 	mov al, 0 ; color
 	call print_rect
+	pop dx cx bx ax
 	ret
 ENDP
 
+PROC playSong
+	push ax bx dx si
+	mov ax, [ticksNotes]
+	mov dx, 0
+	mov bx, 10
+	div bx
+	cmp dx, 0 ; modulo
+	je @@yesNote
+	jmp @@exit
+@@updateSong:
+	mov [songP], 0
+	jmp @@yesNote
+@@yesNote:
+	lea si, [song]
+	mov al, [songP]
+	shl al, 1 ;words
+	mov ah, 0
+	add si, ax
+	mov ax, [si]
+	cmp ax, 0
+	je @@updateSong
+	call close_speaker
+	call open_speaker
+	call send_note
+	inc [songP]
+@@exit:
+	pop si dx bx ax
+	ret
+ENDP
+
+PROC playPoint
+	push ax bx dx si
+	mov ax, [ticksNotes]
+	mov dx, 0
+	mov bx, 8
+	div bx
+	cmp dx, 0 ;modulo
+	je @@yesNote
+	jmp @@exit
+@@updateSong:
+	mov [pointSongP], 0
+@@yesNote:
+	lea si, [pointSong]
+	mov al, [pointSongP]
+	shl al, 1 ; the array is words
+	mov ah, 0
+	add si, ax
+	mov ax, [si]
+	cmp ax, 0
+	je @@updateSong
+	call close_speaker
+	call open_speaker
+	call send_note
+	inc [pointSongP]
+@@exit:
+	pop si dx bx ax
+	ret
+ENDP
 END start
