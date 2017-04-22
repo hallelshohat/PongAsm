@@ -130,19 +130,19 @@ PROC init
 	push ax bx
 	mov [ballX], 153
 	mov [ballY], 93
-	mov bx, 2
+	mov bx, 100
 	call rand
-	cmp ax, 0
-	je @@xzero
-	mov [balldX], ax
+	cmp ax, 50
+	jb @@xzero
+	mov [balldX], 1
 	jmp @@y
 @@xzero:
 	mov [balldX], -1
 @@y:
 	call rand
-	cmp ax, 0
-	je @@yzero
-	mov [balldY], ax
+	cmp ax, 50
+	jb @@yzero
+	mov [balldY], 1
 	jmp @@exit
 @@yzero:
 	mov [balldY], -1

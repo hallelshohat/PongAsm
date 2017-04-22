@@ -346,12 +346,25 @@ ENDP
 
 PROC rand ; generating a random number between 0 and bx. returns - ax: the number.
 	push cx dx
+	jmp @@time
+	xortable dw 1, 10, 6, 7, 3, 5, 94, 88, 12, 34, 43, 51
+@@time:	
 	mov ah, 0
 	int 1Ah ; system time, CX:DX
-	mov ax, dx
+	
+	mov ax, 25173
+	mul dx
+	add ax, 13849
+	
 	mov dx, 0
-	mov cx, bx
+	mov cx, 10
 	div cx ; dx = ax % cx
+	lea si, [cs:xortable]
+	add si, dx ; random number
+	xor ax, [si]
+	
+	mov dx, 0
+	div bx
 	mov ax, dx
 	pop dx cx
 	ret
