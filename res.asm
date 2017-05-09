@@ -6,6 +6,7 @@
 ;	PRINT_COLOR - paramaters: char(byte), color(byte). prints the character with the color. color table- end of file
 ;	LINE - going down one line.
 ;	PRINT_STR - parameters: string, prints the string(without a line ending).
+; 	PRINTS_COLOR - parameters: string, color. prints the string with color.
 ;	PRINTN - parameters: string, prints the string(with a line ending).
 
 ;---------------------------------------------------------------------------------------------------------------------------- 
@@ -20,7 +21,7 @@
 ;	delay - delays in ax millisecs
 ;	clearBuffer - clears the keyboard buffer
 ;	checkKeyPress 	check for keyPress in the buffer. al = scan code
-;	waitForKeyPress - waits for a keypress. no echo
+;	waitForKeyPress - waits for a keypress. no echo. ah- scan code, al-ascii char.
 ;	PRINT_PIXEL - prints a pixel in the specified location and color. cx - x, dx - y, al - color.
 ;	PRINT_LINE - prints a line. bx - length, cx - x, dx -  y, al - color
 ;	PRINT_RECT - prints a rectangle. ah - height, cx - x, dx - y, bx - width, al - color.	
@@ -29,6 +30,10 @@
 ;	open_speaker - opens the speaker port.
 ;	send_note - sends a note to the speaker, ax = 1193180/hz.note
 ; 	close_speaker - closes the speaker ports.
+;	createFile - creates a file. ds:dx - filename(0 - end). cf - 0: clear, 1: error ax - filehandle/error code
+;	openFile - opens a file. ds:dx - filename, CF = 0: successful, ax = filehandle, CF = 1: ERROR - ax = 2: file not found error.
+;	readFile - reads from a file. bx - file handle, cx - number of bytes to read, ds:dx - pointer to a buffer.  ax = cx if cf = 0, error code if cf = 1.
+; 	writeFile - writes to a file. bx - file handle, cx - number of bytes to write, ds:dx - pointer to a buffer. ax = cx if cf = 0, error code if cf = 1.
 
 ;-------------------------macros--------------------------------------------------------------------------------------
 MACRO PUTC char
@@ -51,12 +56,17 @@ ENDM
 
 MACRO PRINT_COLOR char, color ; 4 upper bits: background color, 4 lower bits: character color.
 	push ax bx cx dx
+	mov ah, 03h
+	mov bh, 0
+	int 10h ; gets x, y
 	mov ah, 09h
 	mov al, char
 	mov bh, 0 ;page number
 	mov bl, color 
 	mov cx, 1
 	int 10h
+	inc dl
+	gotoXY dh, dl
 	pop dx cx bx ax
 ENDM
 
@@ -78,6 +88,24 @@ print:
 		je done
 		mov ah, 02h
 		int 21h
+		inc si
+		jmp print
+done:
+		pop dx ax si
+ENDM
+
+MACRO PRINTS_COLOR string, color
+		local start, print, done, s
+		push si ax dx	
+		jmp start
+		s db string, 0
+start:		
+		lea si, [s]
+print:
+		mov dl, [cs:si]
+		cmp dl, 0
+		je done
+		print_color dl, color
 		inc si
 		jmp print
 done:
@@ -162,11 +190,6 @@ PROC SCAN_NUM ; result - cx
     je @@done
 	cmp al, 08h ; backspace    
     je @@bsp
-	cmp al, '9'
-	ja @@bsp
-	cmp al, '0'
-	jb @@bsp
-
 	mov ah, 0
     sub al, '0'
     push ax
@@ -304,10 +327,8 @@ PROC checkKeyPress ; checks for a keyPress in the buffer. al = scan code
 ENDP
 
 PROC waitForKeyPress
-	push ax
 	mov ah, 0
 	int 16h
-	pop ax
 	ret
 ENDP
 
@@ -408,6 +429,40 @@ PROC close_speaker ; closes the speaker port.
 	and al, 11111100b
 	out 61h, al
 	pop ax
+	ret
+ENDP
+
+PROC createFile ; creates a file. ds:dx - filename(0 - end). cf - 0: clear, 1: error ax - filehandle/error code
+	push cx
+	mov cx, 0
+	mov ah, 3Ch
+	int 21h
+	pop cx
+	ret
+ENDP
+
+PROC openFile ; opens a file. ds:dx - filename, CF = 0: successful, ax = filehandle, CF = 1: ERROR - ax = 2: file not found error.
+	mov ah, 03Dh
+	mov al, 2
+	int 21h
+	ret
+ENDP
+
+PROC closeFile ; closes a file. bx - file handle. ax = error code if cf = 1.
+	mov ah, 3Eh
+	int 21h
+	ret
+ENDP 
+
+PROC readFile ; reads from a file. bx - file handle, cx - number of bytes to read, ds:dx - pointer to a buffer.  ax = cx if cf = 0, error code if cf = 1.
+	mov ah, 3Fh
+	int 21h
+	ret
+ENDP 
+
+PROC writeFile ; writes to a file. bx - file handle, cx - number of bytes to write, ds:dx - pointer to a buffer. ax = cx if cf = 0, error code if cf = 1.
+	mov ah, 40h
+	int 21h
 	ret
 ENDP
 

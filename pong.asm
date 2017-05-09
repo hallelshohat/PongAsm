@@ -1,7 +1,11 @@
 IDEAL
 model small
 stack 100h
+jumps
 dataseg
+	readBufferSize equ 11
+	writeBufferSize equ 10
+	
 	sM dw 3 ;step size 
 	mils dw 20
 	wid dw 10
@@ -44,6 +48,12 @@ dataseg
 	pointSong dw 2712, 2152, 1810, 1356, 50, 1810, 1356, 50, 50, 50, 50, 1356, 1810, 2152, 2712, 50, 2152, 2712, 50, 50, 50, 50, 0
 	pointSongP db 0
 	ticksNotes dw 0
+	
+	fileName db "last", 0
+	readBuffer db readBufferSize dup(0FFh)
+	writeBuffer db writeBufferSize dup(0FFh)
+	fileHandle dw 0
+	fileS db 0
 codeseg
 include "res.asm"
 start:
@@ -55,7 +65,7 @@ start:
 	call showStart
 	call graphmode
 	call init
-l:
+mainLoop:
 	call printMatkot
 	call print_score
 	call updateM
@@ -69,19 +79,19 @@ l:
 	cmp [isWait], 0
 	je ballUpd
 	jne printWait
-	jmp l
+	jmp mainLoop
 ballUpd:
 	call playSong
 	call printBall
 	call updateB
-	jmp l
+	jmp mainLoop
 printWait:
 	call playPoint
 	cmp [won], 0
-	jne l
+	jne mainLoop
 	gotoXY 5, 8 ; 40x25
 	print_str "press enter to continue..."
-	jmp l
+	jmp mainLoop
 exit:
 	call close_speaker ; last note on popcorn song
 	call txtmode
@@ -105,7 +115,19 @@ PROC showStart
 	printn " | __ |_\__ \ __ | (_) | __ |/ _ \| |  "
 	printn " |_||_(_)___/_||_|\___/|_||_/_/ \_\_|  "
 	line
-	
+	printn "TO PLAY, PRESS SPACE"
+	printn "TO SEE LAST GAMES, PRESS ENTER"
+@@wait:
+	call waitForKeyPress
+	cmp ah, 39h ; space
+	je @@play
+	cmp ah, 1Ch ; enter
+	je @@scores
+	jmp @@wait
+@@scores:
+	call showScores
+@@play:	
+	line
 	printn "ENTER THE SCORE TO WIN:"
 	call scan_num
 	line 
@@ -125,14 +147,100 @@ PROC restart
 	ret
 ENDP
 
+PROC showScores
+	call graphmode
+	gotoXY 0, 14
+	printn "LAST SCORES:"
+	call readF
+	lea si, [readBuffer]
+	mov cx, 5
+@@read:
+	mov bl, 6
+	sub bl, cl
+	shl bl, 1
+	gotoXY bl, 17
+	mov al, [si]
+	add al, 30h
+	print_color al, 02h
+	inc si
+	putc " "
+	putc ":"
+	putc " "
+	mov al, [si]
+	add al, 30h
+	print_color al, 04h
+	inc si
+	loop @@read
+	call waitForKeyPress
+	call txtmode
+	ret
+ENDP
+
+PROC openF
+	push dx ax
+@@open:	
+	lea dx, [fileName]
+	call openFile
+	jc @@create
+	mov [fileHandle], ax
+	pop ax dx
+	ret
+@@create:
+	call createFile
+	jmp @@open
+ENDP
+
+PROC closeF
+	push bx ax
+	mov bx, [fileHandle]
+	call closeFile
+	pop ax bx
+	ret
+ENDP
+
+PROC readF
+	push ax bx cx dx
+	call openF
+	lea dx, [readBuffer]
+	mov bx, [fileHandle]
+	mov cx, readBufferSize
+	call readFile
+	call closeF
+	pop dx cx bx ax
+	ret
+ENDP
+
+PROC writePoints
+	call openF
+	lea si, [writeBuffer]
+@@check:
+	mov ax, [si]
+	cmp ax, 0
+	je @@add
+	add si, 2
+	jmp @@check
+@@add:	
+	mov al, [lscore]
+	mov [si], al
+	inc si
+	mov al, [rScore]
+	mov [si], al
+	lea dx, [writeBuffer]
+	mov bx, [fileHandle]
+	mov cx, writeBufferSize
+	call writeFile
+	call closeF
+	ret
+ENDP
+
 ; initializes the ball position and direction
 PROC init
 	push ax bx
 	mov [ballX], 153
 	mov [ballY], 93
-	mov bx, 100
+	mov bx, 10
 	call rand
-	cmp ax, 50
+	cmp ax, 5
 	jb @@xzero
 	mov [balldX], 1
 	jmp @@y
@@ -140,7 +248,7 @@ PROC init
 	mov [balldX], -1
 @@y:
 	call rand
-	cmp ax, 50
+	cmp ax, 5
 	jb @@yzero
 	mov [balldY], 1
 	jmp @@exit
@@ -217,7 +325,7 @@ PROC updateM
 	cmp al, 13h ;r key - restart after won
 	je @@restart
 	cmp al, 1Ch ; enter key
-	je @@d ; jumps to dwait
+	je @@dwait
 	jmp @@add
 @@up:
 	mov ax, [sM]
@@ -242,8 +350,6 @@ PROC updateM
 	jg @@add
 	mov [rdy], 0
 	jmp @@add
-@@d:
-	jmp @@dWait
 @@nlu:	
 	cmp [ldy], 0
 	jg @@add
@@ -274,6 +380,8 @@ PROC updateM
 	pop ax
 	ret	
 @@dWait:
+	cmp [won], 0
+	jne @@add
 	mov [isWait], 0
 	call eraseMsg
 	jmp @@add
@@ -547,7 +655,7 @@ PROC checkColiisionM
 	mov ax, [ballX]
 	add ax, [ballW]
 	cmp ax, [rx]
-	je @@ls ; jumps to leftScore
+	je @@leftScore; jumps to leftScore
 	jmp @@exit
 @@score:
 	mov [isWait], 1
@@ -563,9 +671,6 @@ PROC checkColiisionM
 	gotoXY 3, 12
 	print_str "right scored!!"
 	jmp @@score
-@@ls: 
-	jmp @@leftScore	
-@@e: jmp @@exit	;jump is too far	
 @@rwon:
 	call graphmode
 	call print_score
@@ -594,6 +699,7 @@ PROC checkColiisionM
 	print_str "RESTART - R"
 	gotoXY 7, 14
 	print_str "EXIT - ESC"
+	call writePoints
 	jmp @@exit
 @@exit:
 	pop bx ax
