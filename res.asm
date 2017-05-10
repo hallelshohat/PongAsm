@@ -41,7 +41,7 @@ MACRO PUTC char
         mov     dl, char
         mov		ah, 02h
         int     21h     
-        POP     dx ax
+        POP     dx ax ; bypass_pop_match
 ENDM
 
 MACRO gotoXY a, b ; a = row, b = col  
@@ -51,7 +51,7 @@ MACRO gotoXY a, b ; a = row, b = col
     mov dl, b
     mov bh, 0
     int 10h
-	pop dx bx ax
+	pop dx bx ax ; bypass_pop_match
 ENDM    
 
 MACRO PRINT_COLOR char, color ; 4 upper bits: background color, 4 lower bits: character color.
@@ -67,7 +67,7 @@ MACRO PRINT_COLOR char, color ; 4 upper bits: background color, 4 lower bits: ch
 	int 10h
 	inc dl
 	gotoXY dh, dl
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 ENDM
 
 MACRO LINE
@@ -91,7 +91,7 @@ print:
 		inc si
 		jmp print
 done:
-		pop dx ax si
+		pop dx ax si ; bypass_pop_match
 ENDM
 
 MACRO PRINTS_COLOR string, color
@@ -109,7 +109,7 @@ print:
 		inc si
 		jmp print
 done:
-		pop dx ax si
+		pop dx ax si ; bypass_pop_match
 ENDM
  
 MACRO PRINTN string
@@ -120,7 +120,7 @@ ENDM
 
 ;---------------------------procedures----------------------------------------------------------------------------------
 PROC PRINT_UNS ; prints the value in ax reg
-    push ax bx cx dx
+    push ax bx cx dx ;ignore_line
     
     mov bx, 10
     mov cx, 0
@@ -144,13 +144,13 @@ PROC PRINT_UNS ; prints the value in ax reg
 	putc dl
 	jmp @@g
 @@g:
-	pop dx
+	pop dx ; bypass_pop_match
 	cmp cx, bx
 	je @@checkIfZero
     putc dl
     loop @@g        
     
-    pop dx cx bx ax
+    pop dx cx bx ax ; bypass_pop_match
     ret        
 ENDP PRINT_UNS
 
@@ -168,12 +168,12 @@ PROC PRINTS ; prints the value in ax reg(signed)
 	mov ax, [@@s]
 	neg ax
 	call print_uns
-	pop ax
-	ret
+	jmp @@exit
 	
 @@plus:
 	call print_uns
-	pop ax
+@@exit:	
+	pop ax; bypass_pop_match
 	ret
 ENDP PRINTS
 
@@ -198,7 +198,7 @@ PROC SCAN_NUM ; result - cx
     jbe @@sc
     jmp @@done
 @@bsp:
-	pop ax
+	pop ax ; bypass_pop_match
 	dec [count]
     putc 20h
 	putc 08h
@@ -206,7 +206,7 @@ PROC SCAN_NUM ; result - cx
 @@done:
 	cmp [count], 0
 	je @@Zchars
-    pop ax
+    pop ax ; bypass_pop_match
     mul bx ; ax - result
     add cx, ax
     mov ax, bx
@@ -221,7 +221,7 @@ PROC SCAN_NUM ; result - cx
 	mov cx, 0
 	jmp @@exit
 @@exit:
-    pop dx bx ax
+    pop dx bx ax ; ignore_line
     ret  
 ENDP SCAN_NUM
 
@@ -277,7 +277,7 @@ PROC SCAN_STR
 		mov dl, 0Dh
 		int 21h
 
-        POP     BX ax
+        POP     BX ax ; bypass_pop_match
         RET   
 ENDP SCAN_STR
 
@@ -285,7 +285,7 @@ PROC graphmode ; moves to 320x200 video mode
 	push ax
 	mov ax, 13h
 	int 10h ; 200x320 graphics mode
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -293,7 +293,7 @@ PROC txtmode ; moves to text mode
 	push ax
 	mov ax, 2 ; return to text mode
 	int 10h
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -305,7 +305,7 @@ PROC delay ;delays in ax millisecs.
 	mov dx, ax
 	mov ah, 86h
 	int 15h	
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -315,7 +315,7 @@ PROC clearBuffer ; clears the keyboard buffer
 	mov al, 0
 	mov ah, 0Ch
 	int 21h
-	pop ax
+	pop ax ; bypass_pop_match
 	popf
 	ret
 ENDP 
@@ -337,7 +337,7 @@ PROC PRINT_PIXEL; prints a pixel in the specified location and color. cx - x, dx
 	mov bh, 0
 	mov ah, 0Ch
 	int 10h
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -349,7 +349,7 @@ PROC PRINT_LINE ; bx - length, cx - x, dx -  y, al - color
 	dec bx
 	cmp bx, 0
 	jne @@p	
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -361,7 +361,7 @@ PROC print_rect ; ah - height, cx - x, dx - y, bx - width, al - color
 	dec ah
 	cmp ah, 0
 	jne @@a
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -387,7 +387,7 @@ PROC rand ; generating a random number between 0 and bx. returns - ax: the numbe
 	mov dx, 0
 	div bx
 	mov ax, dx
-	pop dx cx
+	pop dx cx ; bypass_pop_match
 	ret
 ENDP
 
@@ -398,7 +398,7 @@ PROC cls
 @@l:
 	putc ' '
 	loop @@l
-	pop cx
+	pop cx ; bypass_pop_match
 	ret
 ENDP
 
@@ -410,7 +410,7 @@ PROC open_speaker ;	opens the speaker port
 	
 	mov al, 0B6h ;getting permission to send frequency
 	out 43h, al
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -419,7 +419,7 @@ PROC send_note ; sends a note to the speaker, ax = 1193180/hz.note
 	out 42h, al ; Sending lower byte
 	mov al, ah
 	out 42h, al ; Sending upper byte
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -428,7 +428,7 @@ PROC close_speaker ; closes the speaker port.
 	in al, 61h
 	and al, 11111100b
 	out 61h, al
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -437,7 +437,7 @@ PROC createFile ; creates a file. ds:dx - filename(0 - end). cf - 0: clear, 1: e
 	mov cx, 0
 	mov ah, 3Ch
 	int 21h
-	pop cx
+	pop cx ; bypass_pop_match
 	ret
 ENDP
 
