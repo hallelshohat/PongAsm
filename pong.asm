@@ -3,11 +3,10 @@ model small
 stack 100h
 jumps
 dataseg
-	readBufferSize equ 11
-	writeBufferSize equ 10
+	bufferSize equ 100
 	
 	sM dw 3 ;step size 
-	mils dw 20
+	mils dw 15
 	wid dw 10
 	height db 50 
 	
@@ -50,8 +49,7 @@ dataseg
 	ticksNotes dw 0
 	
 	fileName db "last", 0
-	readBuffer db readBufferSize dup(0FFh)
-	writeBuffer db writeBufferSize dup(0FFh)
+	buffer db bufferSize dup(0FFh)
 	fileHandle dw 0
 	fileS db 0
 codeseg
@@ -152,7 +150,7 @@ PROC showScores
 	gotoXY 0, 14
 	printn "LAST SCORES:"
 	call readF
-	lea si, [readBuffer]
+	lea si, [buffer]
 	mov cx, 5
 @@read:
 	mov bl, 6
@@ -160,6 +158,8 @@ PROC showScores
 	shl bl, 1
 	gotoXY bl, 17
 	mov al, [si]
+	cmp al, 0FFh
+	je @@cont
 	add al, 30h
 	print_color al, 02h
 	inc si
@@ -171,6 +171,9 @@ PROC showScores
 	print_color al, 04h
 	inc si
 	loop @@read
+@@cont:	
+	gotoXY 10, 5
+	print_str "press any key to continue..."
 	call waitForKeyPress
 	call txtmode
 	ret
@@ -183,7 +186,7 @@ PROC openF
 	call openFile
 	jc @@create
 	mov [fileHandle], ax
-	pop ax dx
+	pop ax dx ; bypass_pop_match
 	ret
 @@create:
 	call createFile
@@ -194,30 +197,30 @@ PROC closeF
 	push bx ax
 	mov bx, [fileHandle]
 	call closeFile
-	pop ax bx
+	pop ax bx ; bypass_pop_match
 	ret
 ENDP
 
 PROC readF
 	push ax bx cx dx
 	call openF
-	lea dx, [readBuffer]
+	lea dx, [buffer]
 	mov bx, [fileHandle]
-	mov cx, readBufferSize
+	mov cx, bufferSize
 	call readFile
 	call closeF
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
 PROC writePoints
 	call openF
-	lea si, [writeBuffer]
+	lea si, [buffer]
 @@check:
-	mov ax, [si]
-	cmp ax, 0
+	mov al, [si]
+	cmp al, 0FFh ; EOF 
 	je @@add
-	add si, 2
+	inc si
 	jmp @@check
 @@add:	
 	mov al, [lscore]
@@ -225,9 +228,9 @@ PROC writePoints
 	inc si
 	mov al, [rScore]
 	mov [si], al
-	lea dx, [writeBuffer]
+	lea dx, [buffer]
 	mov bx, [fileHandle]
-	mov cx, writeBufferSize
+	mov cx, bufferSize
 	call writeFile
 	call closeF
 	ret
@@ -255,7 +258,7 @@ PROC init
 @@yzero:
 	mov [balldY], -1
 @@exit:
-	pop bx ax
+	pop bx ax ; bypass_pop_match
 	ret
 ENDP 
 ; prints the scores for each player
@@ -275,7 +278,7 @@ PROC print_score
 	gotoXY 1, 21
 	mov al, [rScore]
 	call print_uns
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 ; prints the rackets
@@ -295,7 +298,7 @@ PROC printMatkot
 	mov al, [colorMatka] ;color
 	mov ah, [height] ;height
 	call print_rect
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 ; updates the y values
@@ -366,19 +369,19 @@ PROC updateM
 	mov [ldy], 0
 	jmp @@add	
 @@stop:
-	pop ax
+	pop ax ; bypass_pop_match
 	mov [gameOver], 1
 	ret
 @@restart:
 	cmp [won], 0
 	je @@add
 	call restart
-	pop ax
-	ret
+	pop ax ; ignore_line
+	ret ; ignore_line
 @@add:
 	call ad
-	pop ax
-	ret	
+	pop ax ; ignore_line
+	ret	; ignore_line
 @@dWait:
 	cmp [won], 0
 	jne @@add
@@ -435,7 +438,7 @@ PROC ad
 	mov ax, [ry]
 	add ax, [rdy]
 	mov [ry], ax
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP 
 ; prints a black area under and above the rackets
@@ -478,7 +481,7 @@ PROC printBlack
 	mov al, 0
 	mov bx, [wid]
 	call print_rect ; prints the bottom of the right paddle
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 ; prints the ball
@@ -491,7 +494,8 @@ PROC printBall
 	mov ah, [ballH]
 	call print_rect
 	call ball_black
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
+	ret
 ENDP
 ; updates the ball x and y values
 PROC updateB
@@ -501,7 +505,7 @@ PROC updateB
 	add [ballX], ax
 	mov ax, [balldY]
 	add [ballY], ax
-	pop ax
+	pop ax ; bypass_pop_match
 	ret
 ENDP
 ; prints a black area in the previous location of the ball
@@ -568,7 +572,7 @@ PROC ball_black
 	call print_rect
 	jmp @@exit
 @@exit:
-	pop ax bx cx dx
+	pop ax bx cx dx ; bypass_pop_match
 	ret
 ENDP
 ; checks if the ball touches the screen borders
@@ -598,7 +602,7 @@ PROC checkCollision
 	call ball_black
 	jmp @@exit		
 @@exit:
-	pop ax
+	pop ax ; bypass_pop_match
 	call checkColiisionM
 	ret
 ENDP
@@ -702,7 +706,7 @@ PROC checkColiisionM
 	call writePoints
 	jmp @@exit
 @@exit:
-	pop bx ax
+	pop bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -719,7 +723,7 @@ PROC eraseBall
 	add bx, 2
 	mov al, 0 ; color
 	call print_rect
-	pop dx cx bx ax
+	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -727,7 +731,7 @@ PROC playSong
 	push ax bx dx si
 	mov ax, [ticksNotes]
 	mov dx, 0
-	mov bx, 10
+	mov bx, 12
 	div bx
 	cmp dx, 0 ; modulo
 	je @@yesNote
@@ -749,7 +753,7 @@ PROC playSong
 	call send_note
 	inc [songP]
 @@exit:
-	pop si dx bx ax
+	pop si dx bx ax ; bypass_pop_match
 	ret
 ENDP
 
@@ -778,7 +782,7 @@ PROC playPoint
 	call send_note
 	inc [pointSongP]
 @@exit:
-	pop si dx bx ax
+	pop si dx bx ax ; bypass_pop_match
 	ret
 ENDP
 END start
