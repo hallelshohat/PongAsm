@@ -5,8 +5,8 @@ jumps
 dataseg
 	bufferSize equ 100
 	
-	sM dw 3 ;step size 
-	mils dw 15
+	sM dw 2 ;step size 
+	mils dw 10
 	wid dw 10
 	height db 50 
 	
@@ -51,41 +51,41 @@ dataseg
 	fileName db "last", 0
 	buffer db bufferSize dup(0FFh)
 	fileHandle dw 0
-	fileS db 0
+	fileS dw 0
 codeseg
 include "res.asm"
 start:
 	mov ax, @data
 	mov ds, ax
 	call close_speaker
-	mov [reset], 0
-	call cls
-	call showStart
-	call graphmode
-	call init
+	mov [reset], 0 ; the game is not reseted
+	call cls 
+	call showStart ; shows the start menu
+	call graphmode 
+	call init ; initializes the game 
 mainLoop:
-	call printMatkot
-	call print_score
-	call updateM
-	inc [ticksNotes]
-	cmp [reset], 1
-	je start
+	call printMatkot ; prints the paddles
+	call print_score ; prints the score 
+	call updateM ; updates the paddles 
+	inc [ticksNotes] ; for checking the note 
+	cmp [reset], 1 ; is the game needs to be restarted?
+	je start 
 	mov ax, [mils] ; milisecs
-	call delay
-	cmp [gameOver], 0
+	call delay ; delays the game 
+	cmp [gameOver], 0 ; is the game over? 
 	jne exit
-	cmp [isWait], 0
+	cmp [isWait], 0 ; is the game NOT paused
 	je ballUpd
 	jne printWait
 	jmp mainLoop
 ballUpd:
-	call playSong
-	call printBall
-	call updateB
-	jmp mainLoop
+	call playSong ; plays the popcorn song
+	call printBall ; prints the ball 
+	call updateB ; updates the ball
+	jmp mainLoop 
 printWait:
-	call playPoint
-	cmp [won], 0
+	call playPoint ; plays the point song
+	cmp [won], 0 ; is someone NOT won?
 	jne mainLoop
 	gotoXY 5, 8 ; 40x25
 	print_str "press enter to continue..."
@@ -116,22 +116,23 @@ PROC showStart
 	printn "TO PLAY, PRESS SPACE"
 	printn "TO SEE LAST GAMES, PRESS ENTER"
 @@wait:
-	call waitForKeyPress
+	call waitForKeyPress 
 	cmp ah, 39h ; space
 	je @@play
 	cmp ah, 1Ch ; enter
 	je @@scores
 	jmp @@wait
 @@scores:
-	call showScores
+	call showScores ;shows the last scores from the file
 @@play:	
 	line
 	printn "ENTER THE SCORE TO WIN:"
-	call scan_num
+	call scan_num ; scans the max score 
 	line 
 	mov [maxScore], cl
 	ret
 ENDP	
+;	restarting the game vars 
 PROC restart
 	mov [reset], 1
 	mov [gameOver], 0
@@ -144,32 +145,41 @@ PROC restart
 	call txtmode
 	ret
 ENDP
-
+;	reads the scores from the file
 PROC showScores
 	call graphmode
 	gotoXY 0, 14
 	printn "LAST SCORES:"
-	call readF
+	call readF ; reads the data from the file
 	lea si, [buffer]
-	mov cx, 5
-@@read:
-	mov bl, 6
-	sub bl, cl
-	shl bl, 1
-	gotoXY bl, 17
-	mov al, [si]
-	cmp al, 0FFh
+	mov [fileS], si 
+	add si, bufferSize ; si is in the end of the file 
+@@sub:
+	dec si 
+	cmp si, [fileS] ; is si in the start of the file?  
 	je @@cont
-	add al, 30h
-	print_color al, 02h
-	inc si
+	mov al, [si] 
+	cmp al, 0FFh ; is si NOT in the start of the scores
+	je @@sub
+	mov cx, 5 ; reads 5 scores
+@@read:
+	mov al, [si]
+	mov bl, 6 ; line #6 is the end of the scores
+	sub bl, cl
+	shl bl, 1 ; one line space between the scores 
+	gotoXY bl, 17
+	add al, 30h ; ascii adjust
+	print_color al, 02h 
+	dec si 
 	putc " "
 	putc ":"
 	putc " "
 	mov al, [si]
-	add al, 30h
+	add al, 30h ; ascii adjust
 	print_color al, 04h
-	inc si
+	dec si
+	cmp si, [FileS] ; is si in the start of the file?
+	jb @@cont
 	loop @@read
 @@cont:	
 	gotoXY 10, 5
@@ -178,7 +188,7 @@ PROC showScores
 	call txtmode
 	ret
 ENDP
-
+;	opens the file
 PROC openF
 	push dx ax
 @@open:	
@@ -189,10 +199,24 @@ PROC openF
 	pop ax dx ; bypass_pop_match
 	ret
 @@create:
-	call createFile
+	call createF
 	jmp @@open
 ENDP
-
+; creates the file
+PROC createF
+	push ax bx cx dx 
+	lea dx, [fileName]
+	call createFile
+	call openFile
+	mov [fileHandle], ax
+	mov bx, [fileHandle]
+	mov cx, bufferSize
+	lea dx, [buffer]
+	call writeFile
+	pop dx cx bx ax 
+	ret
+ENDP 
+;	closes the file
 PROC closeF
 	push bx ax
 	mov bx, [fileHandle]
@@ -200,7 +224,7 @@ PROC closeF
 	pop ax bx ; bypass_pop_match
 	ret
 ENDP
-
+;	reads from the file
 PROC readF
 	push ax bx cx dx
 	call openF
@@ -212,7 +236,7 @@ PROC readF
 	pop dx cx bx ax ; bypass_pop_match
 	ret
 ENDP
-
+;	writes the points to the file
 PROC writePoints
 	call openF
 	lea si, [buffer]
@@ -223,10 +247,10 @@ PROC writePoints
 	inc si
 	jmp @@check
 @@add:	
-	mov al, [lscore]
+	mov al, [rscore]
 	mov [si], al
 	inc si
-	mov al, [rScore]
+	mov al, [lScore]
 	mov [si], al
 	lea dx, [buffer]
 	mov bx, [fileHandle]
